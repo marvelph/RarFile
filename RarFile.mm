@@ -24,11 +24,38 @@
 
 - (void)dealloc {
     [_path release];
+    [_fileNames release];
     [super dealloc];
 }
 
 - (BOOL)open {
-    return YES;
+    RAROpenArchiveDataEx openArchiveData;
+    memset(&openArchiveData, 0, sizeof openArchiveData);
+    openArchiveData.ArcName = (char *)[_path UTF8String];
+    openArchiveData.OpenMode = RAR_OM_LIST;
+    HANDLE unrarFile = RAROpenArchiveEx(&openArchiveData);
+    if (openArchiveData.OpenResult) {
+        return NO;
+    }
+    
+    NSMutableArray *fileNames = [NSMutableArray array];
+    int error;
+    RARHeaderDataEx headerData;
+    while (!(error = RARReadHeaderEx(unrarFile, &headerData))) {
+        [fileNames addObject:[NSString stringWithUTF8String:headerData.FileName]];
+        if ((error = RARProcessFile(unrarFile, RAR_SKIP, NULL, NULL))) {
+            break;
+        }
+    }
+    
+    RARCloseArchive(unrarFile);
+    if (error == ERAR_END_ARCHIVE) {
+        _fileNames = [fileNames retain];
+        return YES;
+    }
+    else {
+        return NO;
+    }
 }
 
 - (void)close {
@@ -92,33 +119,7 @@ int CALLBACK CallbackProc(UINT msg, LPARAM UserData, LPARAM P1, LPARAM P2)
 
 - (NSArray *)fileNames
 {
-    RAROpenArchiveDataEx openArchiveData;
-    memset(&openArchiveData, 0, sizeof openArchiveData);
-    openArchiveData.ArcName = (char *)[_path UTF8String];
-    openArchiveData.OpenMode = RAR_OM_LIST;
-    openArchiveData.Callback = CallbackProc;
-    HANDLE unrarFile = RAROpenArchiveEx(&openArchiveData);
-    if (openArchiveData.OpenResult) {
-        return nil;
-    }
-    
-    NSMutableArray *results = [NSMutableArray array];
-    int error;
-    RARHeaderDataEx headerData;
-    while (!(error = RARReadHeaderEx(unrarFile, &headerData))) {
-        [results addObject:[NSString stringWithUTF8String:headerData.FileName]];
-        if ((error = RARProcessFile(unrarFile, RAR_SKIP, NULL, NULL))) {
-            break;
-        }
-    }
-    
-    RARCloseArchive(unrarFile);
-    if (error == ERAR_END_ARCHIVE) {
-        return results;
-    }
-    else {
-        return nil;
-    }
+    return _fileNames;
 }
 
 @end

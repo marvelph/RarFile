@@ -10,6 +10,7 @@
 
 @interface RarFile : NSObject {
     NSString *_path;
+    NSArray *_fileNames;
 }
 
 - (id)initWithFileAtPath:(NSString *)path;
